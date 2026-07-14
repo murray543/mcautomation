@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Smart Plug Dashboard</title>
+
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Arial,Helvetica,sans-serif;
+}
+
+body{
+background:#0f172a;
+color:#fff;
+padding:15px;
+}
+
+.container{
+max-width:430px;
+margin:auto;
+}
+
+.card{
+background:#1e293b;
+padding:18px;
+border-radius:18px;
+margin-bottom:15px;
+box-shadow:0 0 10px rgba(0,0,0,.35);
+}
+
+h1{
+text-align:center;
+font-size:26px;
+margin-bottom:15px;
+}
+
+h2{
+font-size:18px;
+margin-bottom:10px;
+}
+
+input{
+width:100%;
+padding:12px;
+border:none;
+border-radius:12px;
+margin-top:10px;
+font-size:16px;
+}
+
+button{
+border:none;
+padding:14px;
+border-radius:14px;
+font-size:16px;
+font-weight:bold;
+cursor:pointer;
+width:100%;
+margin-top:10px;
+color:#fff;
+}
+
+.loginBtn{background:#2563eb;}
+.logoutBtn{background:#ef4444;}
+
+.row{
+display:flex;
+gap:10px;
+}
+
+.row button{
+flex:1;
+}
+
+.unitBtn{
+background:linear-gradient(45deg,#334155,#475569);
+}
+
+.unitActive{
+background:linear-gradient(45deg,#06b6d4,#0891b2);
+box-shadow:0 0 10px rgba(6,182,212,.5);
+}
+
+.on{
+background:linear-gradient(45deg,#16a34a,#22c55e);
+}
+
+.off{
+background:linear-gradient(45deg,#dc2626,#ef4444);
+}
+
+.start{
+background:linear-gradient(45deg,#2563eb,#3b82f6);
+}
+
+.stop{
+background:linear-gradient(45deg,#ea580c,#f97316);
+}
+
+.status{
+text-align:center;
+font-size:14px;
+margin-top:8px;
+opacity:.9;
+}
+
+.footer{
+text-align:center;
+font-size:13px;
+opacity:.6;
+margin-top:20px;
+}
+
+.hidden{
+display:none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<!-- LOGIN -->
+<div id="loginPage" class="card">
+<h1>🔐 Smart Plug</h1>
+
+<input type="email" id="email" placeholder="Email">
+<input type="password" id="password" placeholder="Password">
+
+<button class="loginBtn" onclick="login()">Login</button>
+
+<div class="status" id="loginStatus">Please login</div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" class="hidden">
+
+<h1>⚡ Smart Plug</h1>
+
+<div class="card">
+<h2>Relay Controls</h2>
+
+<div class="row">
+<button id="r1" class="off" onclick="toggleRelay(1)">Relay 1 OFF</button>
+<button id="r2" class="off" onclick="toggleRelay(2)">Relay 2 OFF</button>
+</div>
+</div>
+
+<div class="card">
+<h2>⏱ Timer (Relay 2)</h2>
+
+<input type="number" id="timeVal" placeholder="Enter Time">
+
+<div class="row">
+<button id="minBtn" class="unitBtn unitActive" onclick="setMin()">Minute</button>
+<button id="hourBtn" class="unitBtn" onclick="setHour()">Hour</button>
+</div>
+
+<div class="row">
+<button class="start" onclick="startTimer()">Start</button>
+<button class="stop" onclick="stopTimer()">Stop</button>
+</div>
+
+<div class="status" id="countdown">Timer OFF</div>
+</div>
+
+<div class="card">
+<h2>Status</h2>
+
+<div class="status" id="onlineStatus">Waiting...</div>
+<div class="status" id="lastUpdated">Last updated: --</div>
+
+<button class="loginBtn" onclick="checkDeviceStatus()">Check Status</button>
+<button class="logoutBtn" onclick="logout()">Logout</button>
+
+</div>
+
+<div class="footer">
+Created by Tech StudyCell
+</div>
+
+</div>
+</div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+
+import {
+getAuth,
+signInWithEmailAndPassword,
+signOut,
+onAuthStateChanged
+}
+from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+import {
+getDatabase,
+ref,
+set,
+onValue
+}
+from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+/******** FIREBASE CONFIG ********/
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAqlNVV33Ec_G0dPoGk2TgWdJlSchRwjt0",
+  authDomain: "mc-automation-a1540.firebaseapp.com",
+  databaseURL: "https://mc-automation-a1540-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "mc-automation-a1540",
+  storageBucket: "mc-automation-a1540.firebasestorage.app",
+  messagingSenderId: "379637277104",
+  appId: "1:379637277104:web:093dd0b151812fbfc7b675"
+};
+
+/*******************************/
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+let timeUnit="min";
+let localRemaining=0;
+let countdownTimer=null;
+
+// LOGIN
+window.login=function(){
+
+signInWithEmailAndPassword(
+auth,
+email.value,
+password.value
+)
+.then(()=>{
+loginStatus.innerHTML="Login Success";
+})
+.catch((error)=>{
+loginStatus.innerHTML=error.message;
+});
+
+}
+
+// LOGOUT
+window.logout=function(){
+signOut(auth);
+}
+
+// AUTH STATE
+onAuthStateChanged(auth,(user)=>{
+
+if(user){
+
+loginPage.classList.add("hidden");
+dashboard.classList.remove("hidden");
+
+listenData();
+
+// Auto check when page opens
+checkDeviceStatus();
+
+}else{
+
+loginPage.classList.remove("hidden");
+dashboard.classList.add("hidden");
+
+}
+
+});
+
+// RELAY
+window.toggleRelay=function(n){
+
+onlineStatus.innerHTML="🟡 Sending...";
+
+if(n==1){
+
+let state=r1.innerHTML.includes("OFF");
+set(ref(db,"relay1"),state);
+
+}
+
+if(n==2){
+
+let state=r2.innerHTML.includes("OFF");
+set(ref(db,"relay2"),state);
+
+}
+
+setTimeout(checkDeviceStatus,1500);
+}
+
+// TIMER UNIT
+window.setMin=function(){
+
+timeUnit="min";
+
+minBtn.className="unitBtn unitActive";
+hourBtn.className="unitBtn";
+}
+
+window.setHour=function(){
+
+timeUnit="hr";
+
+hourBtn.className="unitBtn unitActive";
+minBtn.className="unitBtn";
+}
+
+// START TIMER
+window.startTimer=function(){
+
+let val=parseInt(timeVal.value);
+
+if(!val || val<=0) return;
+
+let sec=(timeUnit=="min") ? val*60 : val*3600;
+
+onlineStatus.innerHTML="🟡 Sending...";
+
+set(ref(db,"remaining"),sec);
+set(ref(db,"timerActive"),true);
+
+setTimeout(checkDeviceStatus,1500);
+}
+
+// STOP TIMER
+window.stopTimer=function(){
+
+set(ref(db,"timerActive"),false);
+
+stopLocalCountdown();
+countdown.innerHTML="Timer OFF";
+
+setTimeout(checkDeviceStatus,1500);
+}
+
+// STATUS CHECK
+window.checkDeviceStatus=function(){
+
+onlineStatus.innerHTML="🟡 Checking...";
+
+set(ref(db,"statusReply"),false);
+set(ref(db,"statusRequest"),true);
+
+let timeout=setTimeout(()=>{
+
+onlineStatus.innerHTML="🔴 Disconnected";
+
+},5000);
+
+onValue(ref(db,"statusReply"),(snapshot)=>{
+
+if(snapshot.val()==true){
+
+clearTimeout(timeout);
+
+onlineStatus.innerHTML="🟢 Connected";
+
+lastUpdated.innerHTML=
+"Last updated: "+new Date().toLocaleTimeString();
+
+}
+
+},{onlyOnce:false});
+
+}
+
+// LISTENER
+function listenData(){
+
+onValue(ref(db,"/"),(snapshot)=>{
+
+let data=snapshot.val();
+if(!data) return;
+
+// Relay1
+if(data.relay1){
+r1.innerHTML="Relay 1 ON";
+r1.className="on";
+}else{
+r1.innerHTML="Relay 1 OFF";
+r1.className="off";
+}
+
+// Relay2
+if(data.relay2){
+r2.innerHTML="Relay 2 ON";
+r2.className="on";
+}else{
+r2.innerHTML="Relay 2 OFF";
+r2.className="off";
+}
+
+// Timer
+if(data.timerActive){
+
+localRemaining=parseInt(data.remaining || 0);
+startLocalCountdown();
+
+}else{
+
+stopLocalCountdown();
+countdown.innerHTML="Timer OFF";
+}
+
+});
+
+}
+
+// LOCAL COUNTDOWN
+function startLocalCountdown(){
+
+stopLocalCountdown();
+
+countdownTimer=setInterval(()=>{
+
+if(localRemaining>0){
+
+localRemaining--;
+countdown.innerHTML=formatTime(localRemaining);
+
+}
+
+},1000);
+}
+
+function stopLocalCountdown(){
+
+if(countdownTimer){
+clearInterval(countdownTimer);
+countdownTimer=null;
+}
+
+}
+
+// FORMAT
+function formatTime(sec){
+
+sec=parseInt(sec);
+
+if(sec<60) return sec+" sec";
+
+let m=Math.floor(sec/60);
+let s=sec%60;
+
+if(m<60) return m+" min "+s+" sec";
+
+let h=Math.floor(m/60);
+m=m%60;
+
+return h+" hr "+m+" min";
+}
+
+</script>
+
+</body>
+</html>
